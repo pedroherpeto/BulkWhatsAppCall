@@ -331,15 +331,6 @@ Este projeto está sob a licença MIT. Veja o arquivo `LICENSE` para mais detalh
 - **React Hot Toast** - Notificações elegantes e não-intrusivas
 - **WebRTC** - Tecnologia para comunicação em tempo real
 
-## 📞 Suporte
-
-Para suporte técnico ou dúvidas:
-- 📧 Email: seu-email@exemplo.com
-- 💬 Discord: SeuDiscord#1234
-- 🐛 Issues: [GitHub Issues](https://github.com/seu-usuario/wavoip/issues)
-
----
-
 **Desenvolvido com ❤️ para automatizar ligações em massa com injeção de áudio no WhatsApp**
 
 ### 🚀 **Pronto para Escalar?**
