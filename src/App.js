@@ -100,12 +100,34 @@ function App() {
     }
   }, [callInfo.status, callInfo.whatsapp_instance, uploadedFile, wavoipInstances]);
 
-  // Effect para limpar áudio quando componente for desmontado
+  // Effect para limpar áudio e instâncias quando componente for desmontado
   useEffect(() => {
     return () => {
+      addLog('🧹 Componente sendo desmontado, limpando tudo...', 'info');
+      
+      // Parar todos os áudios
       stopAllAudio();
+      
+      // Limpar todas as instâncias Wavoip
+      Object.keys(wavoipInstances).forEach(token => {
+        try {
+          cleanupWavoipInstance(token);
+        } catch (error) {
+          console.error(`Erro ao limpar instância ${token}:`, error);
+        }
+      });
+      
+      // Limpar interceptação global
+      if (window.originalGetUserMedia) {
+        navigator.mediaDevices.getUserMedia = window.originalGetUserMedia;
+        window.getUserMediaIntercepted = false;
+        window.currentMP3Stream = null;
+        window.pendingAudioSource = null;
+      }
+      
+      addLog('✅ Limpeza completa finalizada', 'success');
     };
-  }, []);
+  }, [wavoipInstances]);
 
   // Effect para capturar erros globais não tratados
   useEffect(() => {
@@ -203,14 +225,32 @@ function App() {
   // Função auxiliar para chamar métodos do socket com validação
   const safeSocketCall = (socket, method, ...args) => {
     try {
-      if (socket && typeof socket[method] === 'function') {
-        return socket[method](...args);
-      } else {
-        addLog(`⚠️ Socket ou método ${method} não disponível`, 'warning');
+      // Validação mais robusta
+      if (!socket) {
+        addLog(`⚠️ Socket é null/undefined para método ${method}`, 'warning');
         return null;
       }
+      
+      if (typeof socket !== 'object') {
+        addLog(`⚠️ Socket não é um objeto para método ${method}`, 'warning');
+        return null;
+      }
+      
+      if (typeof socket[method] !== 'function') {
+        addLog(`⚠️ Método ${method} não existe no socket`, 'warning');
+        return null;
+      }
+      
+      // Verificação adicional antes da chamada
+      if (!socket || typeof socket[method] !== 'function') {
+        addLog(`⚠️ Socket ou método ${method} se tornou inválido durante execução`, 'warning');
+        return null;
+      }
+      
+      return socket[method](...args);
     } catch (error) {
       addLog(`❌ Erro ao chamar ${method}: ${error.message}`, 'error');
+      addLog(`❌ Stack trace: ${error.stack}`, 'error');
       return null;
     }
   };
@@ -1573,27 +1613,61 @@ function App() {
   // Função para limpar instância Wavoip
   const cleanupWavoipInstance = (token) => {
     try {
-      if (wavoipInstances && wavoipInstances[token] && wavoipInstances[token].whatsapp_instance) {
-        const instance = wavoipInstances[token].whatsapp_instance;
-        
-        // Limpar event listeners do socket se existir
-        if (instance && instance.socket) {
-          safeSocketCall(instance.socket, 'removeAllListeners');
-          addLog(`Event listeners removidos para token ${token.substring(0, 8)}...`, 'info');
-        }
-        
-        // Tentar desconectar se o método existir
-        if (instance && typeof instance.disconnect === 'function') {
-          try {
-            instance.disconnect();
-            addLog(`Instância desconectada para token ${token.substring(0, 8)}...`, 'info');
-          } catch (disconnectError) {
-            addLog(`Erro ao desconectar: ${disconnectError.message}`, 'warning');
-          }
-        }
+      addLog(`🧹 Iniciando limpeza da instância para token ${token.substring(0, 8)}...`, 'info');
+      
+      if (!wavoipInstances || !wavoipInstances[token]) {
+        addLog(`⚠️ Instância não encontrada para token ${token.substring(0, 8)}...`, 'warning');
+        return;
       }
+      
+      const instance = wavoipInstances[token].whatsapp_instance;
+      
+      if (!instance) {
+        addLog(`⚠️ whatsapp_instance não encontrada para token ${token.substring(0, 8)}...`, 'warning');
+        return;
+      }
+      
+      // Limpar event listeners do socket se existir
+      if (instance.socket) {
+        addLog(`🧹 Limpando socket para token ${token.substring(0, 8)}...`, 'info');
+        
+        // Usar safeSocketCall para remover listeners
+        safeSocketCall(instance.socket, 'removeAllListeners');
+        
+        // Tentar remover listeners específicos de forma segura
+        safeSocketCall(instance.socket, 'off', 'connect');
+        safeSocketCall(instance.socket, 'off', 'disconnect');
+        safeSocketCall(instance.socket, 'off', 'signaling');
+        
+        addLog(`✅ Event listeners removidos para token ${token.substring(0, 8)}...`, 'success');
+      } else {
+        addLog(`⚠️ Socket não encontrado para token ${token.substring(0, 8)}...`, 'warning');
+      }
+      
+      // Tentar desconectar se o método existir
+      if (typeof instance.disconnect === 'function') {
+        try {
+          instance.disconnect();
+          addLog(`✅ Instância desconectada para token ${token.substring(0, 8)}...`, 'success');
+        } catch (disconnectError) {
+          addLog(`⚠️ Erro ao desconectar: ${disconnectError.message}`, 'warning');
+        }
+      } else {
+        addLog(`⚠️ Método disconnect não encontrado para token ${token.substring(0, 8)}...`, 'warning');
+      }
+      
+      // Remover da lista de instâncias
+      setWavoipInstances(prev => {
+        const newInstances = { ...prev };
+        delete newInstances[token];
+        return newInstances;
+      });
+      
+      addLog(`✅ Instância removida da lista para token ${token.substring(0, 8)}...`, 'success');
+      
     } catch (error) {
-      addLog(`Erro na limpeza da instância: ${error.message}`, 'error');
+      addLog(`❌ Erro na limpeza da instância: ${error.message}`, 'error');
+      addLog(`❌ Stack trace: ${error.stack}`, 'error');
     }
   };
 
@@ -2117,7 +2191,7 @@ function App() {
       
       {/* Top Header Section */}
       <div className="top-header">
-        <h1 className="app-title">Wavoip Frontend</h1>
+        <h1 className="app-title">Wavoip - Ligações em Massa</h1>
       </div>
 
       {/* Main Content Area (Left and Right Panels) */}
