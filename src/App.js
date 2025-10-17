@@ -14,7 +14,8 @@ import {
   AlertCircle,
   CheckCircle,
   Clock,
-  Shield
+  Shield,
+  Copy
 } from 'lucide-react';
 import toast, { Toaster } from 'react-hot-toast';
 import './App.css';
@@ -2258,13 +2259,56 @@ function App() {
     setLogs([]);
   };
 
+  // Função para copiar logs
+  const copyLogs = async () => {
+    try {
+      if (logs.length === 0) {
+        toast.error('Nenhum log para copiar');
+        return;
+      }
+
+      const logsText = logs.map(log => 
+        `[${log.timestamp}] ${log.message}`
+      ).join('\n');
+
+      await navigator.clipboard.writeText(logsText);
+      toast.success('Logs copiados para a área de transferência!');
+      addLog('📋 Logs copiados para a área de transferência', 'info');
+    } catch (error) {
+      addLog(`Erro ao copiar logs: ${error.message}`, 'error');
+      toast.error('Erro ao copiar logs');
+    }
+  };
+
   return (
     <div className="app-wrapper">
       <Toaster position="top-right" />
       
       {/* Top Header Section */}
       <div className="top-header">
-        <h1 className="app-title">Wavoip - Ligações em Massa</h1>
+        <div className="header-content">
+          <h1 className="app-title">Wavoip - Ligações em Massa</h1>
+          <div className="header-links">
+            <a 
+              href="https://chat.whatsapp.com/I01kn65n3CqKFvRIIvQ6hM" 
+              target="_blank" 
+              rel="noopener noreferrer"
+              className="header-link whatsapp-link"
+            >
+              <Phone size={16} style={{ marginRight: '6px' }} />
+              Grupo WhatsApp
+            </a>
+            <a 
+              href="https://app.wavoip.com/" 
+              target="_blank" 
+              rel="noopener noreferrer"
+              className="header-link wavoip-link"
+            >
+              <Shield size={16} style={{ marginRight: '6px' }} />
+              Login Wavoip
+            </a>
+          </div>
+        </div>
       </div>
 
       {/* Main Content Area (Left and Right Panels) */}
@@ -2581,9 +2625,26 @@ function App() {
               <AlertCircle style={{ marginRight: '8px', display: 'inline' }} />
               Logs do Sistema
             </h2>
-            <button onClick={clearLogs} className="btn btn-secondary" style={{ padding: '6px 12px', fontSize: '12px' }}>
-              Limpar Logs
-            </button>
+            <div className="logs-actions">
+              <button 
+                onClick={copyLogs} 
+                className="btn btn-copy" 
+                style={{ padding: '6px 12px', fontSize: '12px', marginRight: '8px' }}
+                disabled={logs.length === 0}
+                title="Copiar logs para área de transferência"
+              >
+                <Copy size={12} style={{ marginRight: '4px' }} />
+                Copiar
+              </button>
+              <button 
+                onClick={clearLogs} 
+                className="btn btn-secondary" 
+                style={{ padding: '6px 12px', fontSize: '12px' }}
+                title="Limpar todos os logs"
+              >
+                Limpar
+              </button>
+            </div>
           </div>
           
           <div className="logs">
