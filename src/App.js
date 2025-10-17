@@ -1447,7 +1447,8 @@ function App() {
         chat_id: null,
       });
       
-      stopAllAudio(); // Parar áudio quando chamada for rejeitada
+      // Usar reset completo do estado de áudio
+      resetAudioState();
       addLog('Chamada rejeitada', 'info');
       
     } catch (error) {
@@ -1488,7 +1489,8 @@ function App() {
         chat_id: null,
       });
       
-      stopAllAudio(); // Parar áudio quando chamada for finalizada
+      // Usar reset completo do estado de áudio
+      resetAudioState();
       addLog('Chamada finalizada pelo usuário', 'info');
       toast.success('Chamada finalizada');
       
@@ -1558,12 +1560,45 @@ function App() {
       }
     });
     
-    // Limpar stream global
+    // LIMPEZA COMPLETA DO STREAM GLOBAL - CORREÇÃO PRINCIPAL
     if (window.currentMP3Stream) {
-      window.currentMP3Stream.getTracks().forEach(track => track.stop());
-      window.currentMP3Stream = null;
-      addLog('🧹 Stream global limpo', 'info');
+      try {
+        // Parar todas as tracks do stream
+        window.currentMP3Stream.getTracks().forEach(track => {
+          track.stop();
+          addLog(`🔇 Track ${track.kind} (${track.id}) parada`, 'info');
+        });
+        addLog('🧹 Stream global limpo completamente', 'success');
+      } catch (error) {
+        addLog(`⚠️ Erro ao limpar stream global: ${error.message}`, 'warning');
+      } finally {
+        // Sempre limpar a referência, mesmo se houver erro
+        window.currentMP3Stream = null;
+      }
     }
+    
+    // Limpar source pendente se existir
+    if (window.pendingAudioSource) {
+      try {
+        if (typeof window.pendingAudioSource.stop === 'function') {
+          window.pendingAudioSource.stop();
+        }
+        addLog('🧹 Source pendente limpo', 'info');
+      } catch (error) {
+        addLog(`⚠️ Erro ao limpar source pendente: ${error.message}`, 'warning');
+      } finally {
+        window.pendingAudioSource = null;
+      }
+    }
+    
+    // RESET COMPLETO DA INTERCEPTAÇÃO GLOBAL
+    addLog('🔄 Resetando interceptação global do getUserMedia...', 'info');
+    if (window.originalGetUserMedia) {
+      navigator.mediaDevices.getUserMedia = window.originalGetUserMedia;
+      addLog('✅ getUserMedia restaurado ao original', 'success');
+    }
+    window.getUserMediaIntercepted = false;
+    addLog('✅ Interceptação global desativada', 'success');
     
     // Suspender AudioContext se existir
     if (audioContext && audioContext.state !== 'closed') {
@@ -1607,7 +1642,7 @@ function App() {
       }
     }
     
-    addLog('✅ Todos os áudios parados', 'success');
+    addLog('✅ Todos os áudios parados e recursos limpos', 'success');
   };
 
   // Função para limpar instância Wavoip
@@ -2178,6 +2213,44 @@ function App() {
     } catch (error) {
       addLog(`🎤 Erro ao acessar microfone: ${error.message}`, 'error');
     }
+  };
+
+  // Função para resetar completamente o estado de áudio entre chamadas
+  const resetAudioState = () => {
+    addLog('🔄 Resetando estado de áudio para nova chamada...', 'info');
+    
+    // Parar todos os áudios primeiro
+    stopAllAudio();
+    
+    // Aguardar um pouco para garantir que tudo foi limpo
+    setTimeout(() => {
+      // Limpar todas as variáveis globais de áudio
+      window.currentMP3Stream = null;
+      window.pendingAudioSource = null;
+      window.getUserMediaIntercepted = false;
+      
+      // Restaurar getUserMedia original se existir
+      if (window.originalGetUserMedia) {
+        navigator.mediaDevices.getUserMedia = window.originalGetUserMedia;
+        addLog('✅ getUserMedia restaurado ao original', 'success');
+      }
+      
+      // Limpar arrays de controle
+      activeAudioSources.current = [];
+      activeAudioElements.current = [];
+      
+      // Resetar estado de reprodução
+      setIsPlayingAudio(false);
+      
+      // Recriar AudioContext se necessário
+      if (audioContext && audioContext.state === 'closed') {
+        const newAudioContext = new (window.AudioContext || window.webkitAudioContext)();
+        setAudioContext(newAudioContext);
+        addLog('🔄 AudioContext recriado', 'info');
+      }
+      
+      addLog('✅ Estado de áudio resetado completamente', 'success');
+    }, 500);
   };
 
   // Função para limpar logs
